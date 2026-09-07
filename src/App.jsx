@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkBreaks from 'remark-breaks'
+
 import './App.css'
 
 function App() {
@@ -12,6 +13,17 @@ function App() {
   ]);
 
   const [input, setInput] = useState('');
+  const textareaRef = useRef(null); // textarea 요소에 접근할 ref 생성
+
+  // input 값이 바뀔 때 마다 높이를 내용물에 맞춰 자동으로 조절
+  useEffect(() => {
+    if(textareaRef.current){
+      //높이 계산을 위해 일단 height를 auto으로 리셋
+      textareaRef.current.style.height = 'auto';
+      // 내용물의 실제 높이(scrollHeight) 로 height 지정
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [input]);
 
   const handleSend = (e) => {
     if (e) e.preventDefault();
@@ -89,6 +101,46 @@ function App() {
                 <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
+                  p({children}){
+                    return(
+                      <span style={{ display: 'inline', margin: 0, padding: 0 }}>
+                        {children}
+                      </span>
+                    );
+                  },
+
+                  ul({children}){
+                    return (
+                    <ul style={{ 
+                      margin: "4px 0 4px 0",
+                      paddingLeft: '18px',
+                      listStyleType: 'disc'
+                     }}>
+                      {children}
+                    </ul>
+                      );
+                  },
+                  ol({children}){
+                    return (
+                      <ol style={{
+                        margin: "4px 0 4px 0",
+                        paddingLeft: '18px',
+                      }}>
+                        {children}
+                      </ol>
+                    )
+                  },
+                  li({children}){
+                    return (
+                      <li style={{
+                        margin: '0',
+                        padding: '0',
+                        lineHeight: '1.3'
+                      }}>
+                        {children}
+                      </li>
+                    )
+                  },
                   code({node, inline, className, children, ...props }){
                     const match = /language-(\w+)/.exec(className || '');
                     // 여러 줄 코드 블록 : 중앙 정렬 wrapper으로 감싸기
@@ -130,6 +182,7 @@ function App() {
         <div className="input-area">
           <form className="input-wrapper" onSubmit={handleSend}>
             <textarea 
+              ref={textareaRef}
               rows={1}
               placeholder='메세지를 입력하시오..(shift + enter) 줄바꿈'
               className='chat-textarea' 

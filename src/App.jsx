@@ -16,7 +16,7 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef(null); // textarea 요소에 접근할 ref 생성
-
+  const MODEL = "gpt-oss-safeguard:20b"
   // input 값이 바뀔 때 마다 높이를 내용물에 맞춰 자동으로 조절
   useEffect(() => {
     if(textareaRef.current){
@@ -47,7 +47,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'gpt-oss-safeguard:latest',
+          model: MODEL,
           prompt: message,
           stream: true,
         })
@@ -122,7 +122,7 @@ function App() {
 
     // 스트리밍 종료 후 최종 반영 (이때도 응답이므로 isThinking은 false)
     updateAiMessage(aiMessageId, accumulatedContent, false);
-    
+
     } catch (error){
       console.error("통신 에러", error);
       updateAiMessage(aiMessageId, "AI 응답 중 오류가 발생했습니다.");

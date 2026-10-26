@@ -6,6 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkBreaks from 'remark-breaks'
 
 import './App.css'
+import { PanelRightDashed } from 'lucide-react'
 
 function App() {
   const [messages, setMessages] = useState([
@@ -13,6 +14,7 @@ function App() {
   ]);
 
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
   const textareaRef = useRef(null); // textarea 요소에 접근할 ref 생성
 
   // input 값이 바뀔 때 마다 높이를 내용물에 맞춰 자동으로 조절
@@ -25,25 +27,112 @@ function App() {
     }
   }, [input]);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     if (e) e.preventDefault();
     if(!input.trim()) return;
 
-    const userMessage = {id: Date.now(), role: 'user', content: input}
-    setMessages((prevMessages) => [...prevMessages, userMessage])
+    const message = input.trim();
+    const userMessageId = Date.now();
+    const aiMessageId = userMessageId + 1;
+    
+    const userMessage = {id: userMessageId, role: 'user', content: message};
+    const initialAiMessage = {id: aiMessageId, role: 'assistant', content:'AI가 생각 중입니다. '};
+    setMessages((prevMessages) => [...prevMessages, userMessage, initialAiMessage])
 
     setInput(''); //입력창 초기화
+    setLoading(true);
 
-    setTimeout(() => {
-      const aiReply = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: `입력하신 내용입니다:\n\n\`\`\`text\n${userText}\n\`\`\`\n\n- **입력 문자 수**: ${userText.length}자\n- **상태**: 정상 전송 완료`
-      };
-      setMessages((prevMessages) => [...prevMessages, aiReply])
-    }, 500)
+    try{
+      const response = await fetch("/ollama_api/api/generate", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-oss-safeguard:latest',
+          prompt: message,
+          stream: true,
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let isDone = false;
+      let accumulatedContent = ""; 
+      let isFirstChunk = true; 
+      let isFirstThinkingChunk = true; 
+      let lastRenderTime = Date.now(); 
+      const RENDER_INTERVAL = 200;
+
+      while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true});
+      
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); 
+
+      for (const line of lines){
+        const trimmed = line.trim();
+        if (!trimmed) continue; 
+
+        const parsed = JSON.parse(trimmed);
+        const currentTime = Date.now();
+        
+        // 1. 생각 중인 메시지 처리
+        if (parsed.thinking){
+          if (isFirstThinkingChunk){
+            accumulatedContent = "";
+            isFirstThinkingChunk = false;
+          }
+          accumulatedContent += parsed.thinking;
+
+          if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
+            // 생각 중일 때는 isThinking: true 유지
+            updateAiMessage(aiMessageId, accumulatedContent, true);
+            lastRenderTime = currentTime;
+          }
+        }
+
+        // 2. 실제 응답 처리
+        if (parsed.response) {
+          if(isFirstChunk){
+            accumulatedContent = ""; // 💡 생각 내용을 싹 지우고 실제 응답으로 리셋!
+            isFirstChunk = false;
+          }
+          accumulatedContent += parsed.response;
+          
+          if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
+            // 🌟 실제 응답이 시작되었으므로 isThinking을 false로 변경!
+            updateAiMessage(aiMessageId, accumulatedContent, false);
+            lastRenderTime = currentTime;
+          }
+        }
+
+        if (parsed.done) {
+          isDone = true;
+          break;
+        }
+      }
+
+      if(isDone) break;
+    }
+
+    // 스트리밍 종료 후 최종 반영 (이때도 응답이므로 isThinking은 false)
+    updateAiMessage(aiMessageId, accumulatedContent, false);
+    
+    } catch (error){
+      console.error("통신 에러", error);
+      updateAiMessage(aiMessageId, "AI 응답 중 오류가 발생했습니다.");
+    }finally{
+      setLoading(false);
+    }
+
   };
 
+  
   const handdleKeyDown = (e) => {
     if(e.nativeEvent.isComposing) return; // 한글 입력시 마지막 글자가 두 번 전달되는 현상 방지
 
@@ -54,6 +143,15 @@ function App() {
     // shift + enter는 아무 것도 막지 않음. 자동으로 줄 바꿈
   };
 
+  const updateAiMessage = (id, newContent, isThinkingState) => {
+    setMessages((prevMessages) => 
+      prevMessages.map((msg) => 
+        msg.id === id 
+          ? { ...msg, content: newContent, isThinking: isThinkingState } 
+          : msg
+      )
+    );
+  };
   return (
 
     <div className="app-container">
@@ -190,7 +288,9 @@ function App() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handdleKeyDown}
               />
-            <button className="send-btn" type='submit'>전송</button>
+            <button className="send-btn" type='submit' disabled={loading}>
+              {loading ? '전송 중...' : '전송'}
+            </button>
           </form>
         </div>
       </main>

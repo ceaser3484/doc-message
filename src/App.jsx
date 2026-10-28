@@ -152,6 +152,30 @@ function App() {
       )
     );
   };
+
+const parseBrTag = (nodes) => {
+  return React.Children.map(nodes, (child) => {
+    // 자식이 문자열인 경우
+    if (typeof child === 'string') {
+      const parts = child.split(/<br\s*\/?>/gi);
+      return parts.map((part, index) => (
+        <React.Fragment key={index}>
+          {part}
+          {index < parts.length - 1 && <br />}
+        </React.Fragment>
+      ));
+    }
+    // 자식이 또 다른 태그(예: <strong> 등)를 품고 있는 경우 재귀적으로 처리
+    if (React.isValidElement(child) && child.props && child.props.children) {
+      return React.cloneElement(child, {
+        ...child.props,
+        children: parseBrTag(child.props.children)
+      });
+    }
+    return child;
+  });
+};
+
   return (
 
     <div className="app-container">
@@ -201,43 +225,77 @@ function App() {
                 components={{
                   p({children}){
                     return(
-                      <span style={{ display: 'inline', margin: 0, padding: 0 }}>
+                      <p style={{ display: 'inline', margin: 0, padding: 0 }}>
                         {children}
-                      </span>
+                      </p>
                     );
                   },
-
                   ul({children}){
                     return (
-                    <ul style={{ 
-                      margin: "4px 0 4px 0",
-                      paddingLeft: '18px',
-                      listStyleType: 'disc'
-                     }}>
-                      {children}
-                    </ul>
-                      );
+                      <ul style={{ 
+                        margin: "6px 0",
+                        paddingLeft: '20px',
+                        listStyleType: 'disc'
+                      }}>
+                        {children}
+                      </ul>
+                    );
                   },
                   ol({children}){
                     return (
                       <ol style={{
-                        margin: "4px 0 4px 0",
-                        paddingLeft: '18px',
+                        margin: "6px 0",
+                        paddingLeft: '20px',
                       }}>
                         {children}
                       </ol>
-                    )
+                    );
                   },
                   li({children}){
                     return (
                       <li style={{
-                        margin: '0',
-                        padding: '0',
-                        lineHeight: '1.3'
+                        margin: '6px 0',
+                        lineHeight: '1.6'
                       }}>
                         {children}
                       </li>
-                    )
+                    );
+                  },
+                  table({children}){
+                    return (
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'collapse', // 👈 선이 겹치지 않고 한 줄로 깔끔하게 합쳐짐
+                        margin: '16px 0',
+                        fontSize: '0.95em'
+                      }}>
+                        {children}
+                      </table>
+                    );
+                  },
+                  th({children}){
+                    return (
+                      <th style={{
+                        border: '1px solid #cbd5e1', // 옅은 회색 윤곽선
+                        backgroundColor: '#242121',    // 헤더 배경색
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontWeight: '600'
+                      }}>
+                        {parseBrTag(children)}
+                      </th>
+                    );
+                  },
+                  td({children}){
+                    return (
+                      <td style={{
+                        border: '1px solid #cbd5e1', // 👈 각 칸마다 윤곽선이 확실하게 보이도록 지정
+                        padding: '8px 12px',
+                        textAlign: 'left'
+                      }}>
+                        {parseBrTag(children)}
+                      </td>
+                    );
                   },
                   code({node, inline, className, children, ...props }){
                     const match = /language-(\w+)/.exec(className || '');

@@ -16,7 +16,16 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef(null); // textarea 요소에 접근할 ref 생성
-  const MODEL = "gpt-oss-safeguard:20b"
+  const MODEL = "gpt-oss:20b"
+
+  // 예시 문구를 입력하기 위한 모달
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [exampleText, setExampleText] = useState("");
+
+  // 팝업 열기/닫기 함수
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => setIsModalOpen(false);
+
   // input 값이 바뀔 때 마다 높이를 내용물에 맞춰 자동으로 조절
   useEffect(() => {
     if(textareaRef.current){
@@ -143,7 +152,15 @@ function App() {
     // shift + enter는 아무 것도 막지 않음. 자동으로 줄 바꿈
   };
 
+  const handleSave = () => {
+    console.log("저장된 예시 문구: ", exampleText);
+    // TODO: 백엔드 에이전트나 상태 관리 변수로 exampletext 전달
+    alert("예시 문구가 저장되었습니다");
+    closeModal();
+  };
+
   const updateAiMessage = (id, newContent, isThinkingState) => {
+    // 메세지를 띄우는 함수
     setMessages((prevMessages) => 
       prevMessages.map((msg) => 
         msg.id === id 
@@ -192,6 +209,13 @@ const parseBrTag = (nodes) => {
 
       {/* 우측 메인 영역 */}
       <main className="main-content">
+        <div className="head-container">
+          <button className='set-example-btn'
+          onClick={() => {
+            openModal();
+            alert("모달 열기 버튼 정상 작동");
+          }}>예시 문구 입력</button>
+        </div>
         <div className="chat-area">
           <div className="chat-wrapper">
 
@@ -352,6 +376,32 @@ const parseBrTag = (nodes) => {
           </form>
         </div>
       </main>
+      {/* 예시 문구 입력 모달 */}
+        {isModalOpen && (
+          <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-content">
+              <h3>예시 문구 설정</h3>
+              <p>
+                AI가 참고할 모범 예시 문구를 입력하세요
+              </p>
+              <textarea 
+                className="modal-textarea"
+                value={exampleText}
+                onChange={(e) => setExampleText(e.target.value)}
+                placeholder="예시) 책임감이 투철하여 학급일에 앞장서서 봉사함.."
+              ></textarea>
+              <div className="modal-buttons">
+                <button className="modal-cancel-btn">취소</button>
+                <button className="modal-save-btn" onClick={() => {
+                  alert("저장되었습니다")
+                  setIsModalOpen(false)
+                }}
+                >저장하기</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* 모달 종료 */}
     </div>
   );
 }

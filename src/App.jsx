@@ -378,7 +378,7 @@ const parseBrTag = (nodes) => {
       </main>
       {/* 예시 문구 입력 모달 */}
         {isModalOpen && (
-          <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-overlay">
             <div className="modal-content">
               <h3>예시 문구 설정</h3>
               <p>
@@ -391,9 +391,13 @@ const parseBrTag = (nodes) => {
                 placeholder="예시) 책임감이 투철하여 학급일에 앞장서서 봉사함.."
               ></textarea>
               <div className="modal-buttons">
-                <button className="modal-cancel-btn">취소</button>
+                <button className="modal-cancel-btn" onClick={() => {
+                  setExampleText('')
+                  setIsModalOpen(false)
+                }}>취소</button>
                 <button className="modal-save-btn" onClick={() => {
                   alert("저장되었습니다")
+                  setExampleText(exampleText)
                   setIsModalOpen(false)
                 }}
                 >저장하기</button>

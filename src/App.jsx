@@ -6,17 +6,15 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkBreaks from 'remark-breaks'
 
 import './App.css'
-import { PanelRightDashed } from 'lucide-react'
+import { MessageSquare, PanelRightDashed } from 'lucide-react'
 
 function App() {
-  const [messages, setMessages] = useState([
-      {id: 1, role: 'assistant', content: '안녕하세요! 직접 꾸민 스타일이 멋있네요'}
-  ]);
+  const [messages, setMessages] = useState([]);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef(null); // textarea 요소에 접근할 ref 생성
-  const MODEL = "gpt-oss:20b"
+  const MODEL = "gpt-oss-safeguard:20b"
 
   // 예시 문구를 입력하기 위한 모달
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,20 +43,26 @@ function App() {
     const aiMessageId = userMessageId + 1;
     
     const userMessage = {id: userMessageId, role: 'user', content: message};
-    const initialAiMessage = {id: aiMessageId, role: 'assistant', content:'AI가 생각 중입니다. '};
-    setMessages((prevMessages) => [...prevMessages, userMessage, initialAiMessage])
+    const updatedMessages = [...messages, userMessage];
 
     setInput(''); //입력창 초기화
     setLoading(true);
 
+    const initialAiMessage = {id: aiMessageId, role: 'assistant', content:'AI가 생각 중입니다. '};
+    setMessages((prevMessages) => [...prevMessages, userMessage, initialAiMessage])
+    console.log(updatedMessages);
+
     try{
-      const response = await fetch("/ollama_api/api/generate", {
+      const response = await fetch("/ollama_api/api/chat", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: MODEL,
-          prompt: message,
+          messages: updatedMessages,
           stream: true,
+          options: {
+            temperature: 0.8,
+          }
         })
       });
 
@@ -75,56 +79,58 @@ function App() {
       const RENDER_INTERVAL = 200;
 
       while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true});
-      
-      const lines = buffer.split("\n");
-      buffer = lines.pop(); 
-
-      for (const line of lines){
-        const trimmed = line.trim();
-        if (!trimmed) continue; 
-
-        const parsed = JSON.parse(trimmed);
-        const currentTime = Date.now();
+        buffer += decoder.decode(value, { stream: true});
         
-        // 1. 생각 중인 메시지 처리
-        if (parsed.thinking){
-          if (isFirstThinkingChunk){
-            accumulatedContent = "";
-            isFirstThinkingChunk = false;
-          }
-          accumulatedContent += parsed.thinking;
+        const lines = buffer.split("\n");
+        buffer = lines.pop(); 
 
-          if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
-            // 생각 중일 때는 isThinking: true 유지
-            updateAiMessage(aiMessageId, accumulatedContent, true);
-            lastRenderTime = currentTime;
-          }
-        }
+        for (const line of lines){
+          const trimmed = line.trim();
+          if (!trimmed) continue; 
 
-        // 2. 실제 응답 처리
-        if (parsed.response) {
-          if(isFirstChunk){
-            accumulatedContent = ""; // 💡 생각 내용을 싹 지우고 실제 응답으로 리셋!
-            isFirstChunk = false;
-          }
-          accumulatedContent += parsed.response;
+          const parsed = JSON.parse(trimmed);
+          const currentTime = Date.now();
+          let parsedObj = parsed.message || {}; // parsed.message가 없으면 빈 객체로 초기화
           
-          if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
-            // 🌟 실제 응답이 시작되었으므로 isThinking을 false로 변경!
-            updateAiMessage(aiMessageId, accumulatedContent, false);
-            lastRenderTime = currentTime;
+          // 1. 생각 중인 메시지 처리
+          if (parsedObj.thinking){
+            if (isFirstThinkingChunk){
+              accumulatedContent = "";
+              isFirstThinkingChunk = false;
+            }
+            accumulatedContent += parsedObj.thinking;
+
+            if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
+              // 생각 중일 때는 isThinking: true 유지
+              updateAiMessage(aiMessageId, accumulatedContent, true);
+              lastRenderTime = currentTime;
+            }
+          }
+
+          // 2. 실제 응답 처리
+          if (parsedObj.content) {
+            if(isFirstChunk){
+              accumulatedContent = ""; // 💡 생각 내용을 싹 지우고 실제 응답으로 리셋!
+              isFirstChunk = false;
+            }
+            accumulatedContent += parsedObj.content;
+            
+            if (currentTime - lastRenderTime >= RENDER_INTERVAL) {
+              // 🌟 실제 응답이 시작되었으므로 isThinking을 false로 변경!
+              updateAiMessage(aiMessageId, accumulatedContent, false);
+              lastRenderTime = currentTime;
+            }
+          }
+          
+
+          if (parsed.done) {
+            isDone = true;
+            break;
           }
         }
-
-        if (parsed.done) {
-          isDone = true;
-          break;
-        }
-      }
 
       if(isDone) break;
     }
